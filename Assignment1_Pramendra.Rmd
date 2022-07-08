@@ -1,0 +1,251 @@
+---
+title: "assignment - Machine Learning"
+author: "Pramendar kushwaha"
+date: "26th February 2022"
+output: html_document
+---
+
+# Problem 1 
+
+```{r include=FALSE}
+library(rpart)        # simple decision trees
+library(rpart.plot)   # nice decision tree plots
+library(randomForest) # standard random forests
+library(caret)        # machine-learning workflow
+library(dplyr)
+library(kernlab)
+library(MLeval)
+```
+
+```{r}
+data <- read.csv('default.csv')
+print(paste0("Count of missing values in Dataset is: ",sum(is.na(data))))
+```
+## Test-Train Split
+
+```{r}
+set.seed(1234)
+data_idx <- createDataPartition(data$default, 
+                    p = 0.7, list = F)
+data_train <- data[data_idx, ]
+data_test <- data[-data_idx, ]
+```
+
+## Models - pre-optimization
+
+### Logistic Regression
+
+```{r}
+tr_conrol_no_cv <- trainControl(savePredictions = TRUE, 
+                                  classProbs = TRUE) 
+
+glm <- train(default ~ ., 
+  data = data_train,
+  method = "glmnet",
+  trControl = tr_conrol_no_cv
+)
+
+data_predict_glm <- predict(glm, data_test)
+```
+
+#### Model Metrics
+```{r}
+table(predicted = data_predict_glm, actual = data_test$default)
+print(paste0("Error Rate: ", (mean(data_predict_glm != data_test$default))*100))
+```
+#### ROC - AUC
+
+```{r}
+predic = (predict(glm, newdata = data_test, type = "prob"))
+data_test <- mutate(data_test,
+                    obs = default,
+                    pred = predict(glm, newdata = data_test),
+                    No = predic$No,
+                    Yes = predic$Yes)
+
+
+# Compute area under the ROC
+twoClassSummary(data_test, lev = levels(data_test$default))
+```
+
+### Random Forests
+
+```{r}
+rf <- train(default ~ ., 
+  data = data_train,
+  method = "rf",
+  trControl = tr_conrol_no_cv
+)
+
+data_predict_rf <- predict(rf, data_test)
+```
+
+#### Model Metrics
+
+```{r}
+table(predicted = data_predict_rf, actual = data_test$default)
+print(paste0("Error Rate: ", (mean(data_predict_glm != data_test$default))*100))
+```
+
+#### ROC - AUC
+
+```{r}
+predic = predict(rf, newdata = data_test, type = "prob")
+data_test <- mutate(data_test,
+                    obs = default,
+                    pred = predict(rf, newdata = data_test),
+                    No = predic$No,
+                    Yes = predic$Yes)
+# Compute area under the ROC
+twoClassSummary(data_test, lev = levels(data_test$default))
+```
+
+### Support Vector Machine
+
+```{r}
+svm <- train(default ~ .,
+            data = data_train,
+            method = "svmRadial",
+            trControl = tr_conrol_no_cv)
+
+data_predict_svm <- predict(svm, data_test)
+```
+
+#### Model Metrics
+
+```{r}
+table(predicted = data_predict_svm, actual = data_test$default)
+print(paste0("Error Rate: ", (mean(data_predict_glm != data_test$default))*100))
+```
+
+#### ROC - AUC
+
+```{r}
+predic = predict(svm, newdata = data_test, type = "prob")
+data_test <- mutate(data_test,
+                    obs = default,
+                    pred = predict(svm, newdata = data_test),
+                    No = predic$No,
+                    Yes = predic$Yes)
+# Compute area under the ROC
+twoClassSummary(data_test, lev = levels(data_test$default))
+```
+
+
+## Model Optimization - 10 Fold cross-validation
+
+```{r}
+
+#TR Control with Cross Validation - 10 fold cv
+
+tr_conrol_cv <- trainControl(method = "cv", number = 10, 
+                             savePredictions = TRUE, 
+                             classProbs = TRUE)
+```
+
+### Logistic Regression
+
+```{r}
+glm_opt <- train(default ~ ., 
+  data = data_train,
+  method = "glmnet",
+  trControl = tr_conrol_cv
+)
+
+data_predict_glm_opt <- predict(glm_opt, data_test)
+```
+
+#### Model Metrics
+```{r}
+table(predicted = data_predict_glm_opt, actual = data_test$default)
+print(paste0("Error Rate: ", (mean(data_predict_glm != data_test$default))*100))
+```
+#### ROC - AUC
+
+```{r}
+predic = predict(glm_opt, newdata = data_test, type = "prob")
+data_test <- mutate(data_test,
+                    obs = default,
+                    pred = predict(glm_opt, newdata = data_test),
+                    No = predic$No,
+                    Yes = predic$Yes)
+# Compute area under the ROC
+twoClassSummary(data_test, lev = levels(data_test$default))
+```
+
+### Random Forests
+
+```{r}
+rf_opt <- train(default ~ ., 
+  data = data_train,
+  method = "rf",
+  trControl = tr_conrol_cv,
+  ntrees = 600,
+  nodesize = 6
+)
+
+data_predict_rf_opt <- predict(rf_opt, data_test)
+```
+
+#### Model Metrics
+
+```{r}
+table(predicted = data_predict_rf_opt, actual = data_test$default)
+print(paste0("Error Rate: ", (mean(data_predict_glm != data_test$default))*100))
+```
+
+#### ROC - AUC
+
+```{r}
+predic = predict(glm_opt, newdata = data_test, type = "prob")
+data_test <- mutate(data_test,
+                    obs = default,
+                    pred = predict(rf_opt, newdata = data_test),
+                    No = predic$No,
+                    Yes = predic$Yes)
+# Compute area under the ROC
+twoClassSummary(data_test, lev = levels(data_test$default))
+```
+
+### Support Vector Machine
+
+```{r}
+svm_opt <- train(default ~ .,
+            data = data_train,
+            method = "svmRadial",
+            trControl = tr_conrol_cv,
+            tuneLength = 10,
+            preProcess = c("center", "scale"))
+
+data_predict_svm_opt <- predict(svm_opt, data_test)
+```
+
+#### Model Metrics
+
+```{r}
+table(predicted = data_predict_svm_opt, actual = data_test$default)
+print(paste0("Error Rate: ", (mean(data_predict_glm != data_test$default))*100))
+```
+#### ROC - AUC
+
+```{r}
+predic = predict(svm_opt, newdata = data_test, type = "prob")
+data_test <- mutate(data_test,
+                    obs = default,
+                    pred = predict(svm_opt, newdata = data_test),
+                    No = predic$No,
+                    Yes = predic$Yes)
+# Compute area under the ROC
+twoClassSummary(data_test, lev = levels(data_test$default))
+```
+
+## Important Variables
+
+From the results of both pre-optimized models and optimized models, Logistic regression model with 10 fold cross-validation performs better with ROC-AUC of 0.95 and accuracy of 97.43 %.
+
+
+```{r}
+importance <- varImp(rf_opt)
+plot(importance, main="Important Variables")
+```
+
