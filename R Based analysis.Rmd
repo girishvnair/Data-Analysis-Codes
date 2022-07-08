@@ -18,7 +18,7 @@ library(MLeval)
 ```
 
 ```{r}
-data <- read.csv('default.csv')
+data <- read.csv('credit_data.csv')
 print(paste0("Count of missing values in Dataset is: ",sum(is.na(data))))
 ```
 ## Test-Train Split
